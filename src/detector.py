@@ -1,6 +1,6 @@
 # src/detector.py
 # Модуль 2 — Детектор
-# Блок 4: PersonDetector — обёртка над YOLOv8n.
+# Блок 4: PersonDetector — обёртка над YOLO.
 
 import numpy as np
 from ultralytics import YOLO
@@ -12,7 +12,7 @@ _PERSON_CLASS_ID = 0
 
 
 class PersonDetector:
-    """Обнаруживает людей на кадре с помощью YOLOv8n."""
+    """Обнаруживает людей на кадре с помощью YOLO."""
 
     def __init__(self):
         self._model = YOLO(YOLO_MODEL)

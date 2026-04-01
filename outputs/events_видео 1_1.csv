@@ -1,0 +1,4 @@
+frame_idx,timestamp_sec,event_type,prev_state,new_state
+0,0.0,initial_state,N/A,EMPTY_CONFIRMED
+710,29.583333333333332,became_occupied,EMPTY_CONFIRMED,OCCUPIED_CONFIRMED
+710,29.583333333333332,approach,EMPTY_CONFIRMED,OCCUPIED_CONFIRMED

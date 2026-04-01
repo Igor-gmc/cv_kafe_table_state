@@ -1,28 +1,33 @@
 # src/event_logger.py
 # Модуль 5 — Логгер событий
-# Блок 7: EventLogger — хранилище событий на базе DataFrame, сброс в CSV при закрытии.
+# Блок 7: EventLogger — хранилище событий, CSV обновляется при каждом новом событии.
 
 import pandas as pd
 
 
 class EventLogger:
-    """Накапливает события в Pandas DataFrame и записывает их в CSV при закрытии."""
+    """Накапливает события в список и обновляет CSV при каждом новом событии."""
 
     _COLUMNS = ["frame_idx", "timestamp_sec", "event_type", "prev_state", "new_state"]
 
     def __init__(self, csv_path: str):
         self._csv_path = csv_path
-        self._df = pd.DataFrame(columns=self._COLUMNS)
+        self._events: list[dict] = []
 
     def log(self, event: dict):
-        row = pd.DataFrame([event], columns=self._COLUMNS)
-        self._df = pd.concat([self._df, row], ignore_index=True)
+        self._events.append(event)
+        self._flush()
 
     def get_dataframe(self) -> pd.DataFrame:
-        return self._df.copy()
+        return pd.DataFrame(self._events, columns=self._COLUMNS)
+
+    def _flush(self):
+        pd.DataFrame(self._events, columns=self._COLUMNS).to_csv(
+            self._csv_path, index=False
+        )
 
     def close(self):
-        self._df.to_csv(self._csv_path, index=False)
+        self._flush()
 
     def __enter__(self):
         return self

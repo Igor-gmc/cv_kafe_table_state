@@ -19,9 +19,6 @@ if os.name == "nt":
 from src.config.settings import (
     FRAME_SKIP,
     MOTION_THRESHOLD,
-    OUTPUT_EVENTS_CSV,
-    OUTPUT_REPORT,
-    OUTPUT_TABLE_LOG,
     OUTPUT_TARGET_SIZE_MB,
     REQUIRED_EMPTY_SEC,
     REQUIRED_OCCUPIED_SEC,
@@ -36,6 +33,7 @@ from src.event_logger import EventLogger
 from src.presence_logic import compute_presence_signal
 from src.state_machine import (
     CANDIDATE_EMPTY,
+    EMPTY_CONFIRMED,
     OCCUPIED_CONFIRMED,
     TableStateMachine,
 )
@@ -135,6 +133,9 @@ def run_pipeline(video_path: str):
     Path("outputs").mkdir(exist_ok=True)
     video_stem = Path(video_path).stem
     output_video = f"outputs/output_{video_stem}.mp4"
+    output_events_csv = f"outputs/events_{video_stem}.csv"
+    output_report = f"outputs/report_{video_stem}.txt"
+    output_table_log = f"outputs/table_status_{video_stem}.log"
 
     with VideoReader(video_path) as reader:
         fps = reader.fps
@@ -162,7 +163,7 @@ def run_pipeline(video_path: str):
         # Детектор движения запускается на каждом кадре (не зависит от FRAME_SKIP),
         # так как вычитание фона дёшево и требует непрерывного потока кадров для корректной модели фона.
         motion_detector = MotionDetector(table_zone)
-        table_logger = TableStatusLogger(OUTPUT_TABLE_LOG, video_path)
+        table_logger = TableStatusLogger(output_table_log, video_path)
 
         # Определить начальный статус столика по первому кадру
         initial_detections = detector.detect(first_frame)
@@ -170,7 +171,6 @@ def run_pipeline(video_path: str):
         if initial_presence == "interacting_person":
             initial_state = OCCUPIED_CONFIRMED
         else:
-            from src.state_machine import EMPTY_CONFIRMED
             initial_state = EMPTY_CONFIRMED
 
         state_machine = TableStateMachine(fps, initial_state=initial_state)
@@ -201,7 +201,7 @@ def run_pipeline(video_path: str):
         bitrate_kbps = int(OUTPUT_TARGET_SIZE_MB * 8 * 1024 / duration_sec)
         print(f"Целевой размер: {OUTPUT_TARGET_SIZE_MB} МБ → битрейт: {bitrate_kbps} kbps")
 
-        with EventLogger(OUTPUT_EVENTS_CSV) as logger, \
+        with EventLogger(output_events_csv) as logger, \
              VideoWriter(output_video, fps, frame_width, frame_height, bitrate_kbps) as writer:
             logger.log(initial_event)
             start_time = time.time()
@@ -246,9 +246,11 @@ def run_pipeline(video_path: str):
                     state_screen_name = (
                         f"{video_stem}_f{e['frame_idx']:05d}_{m:02d}m{s:02d}s_{e['new_state']}.png"
                     )
-                    state_screen_dir = os.path.join("outputs", "screen_table_state")
-                    os.makedirs(state_screen_dir, exist_ok=True)
                     cv2.imwrite(os.path.join(state_screen_dir, state_screen_name), frame)
+
+                if events:
+                    interim_analytics = compute_analytics(logger.get_dataframe())
+                    save_report(interim_analytics, output_report)
 
                 annotated = draw_frame(
                     frame, last_detections, table_zone, state_machine.current_state, presence
@@ -271,7 +273,7 @@ def run_pipeline(video_path: str):
     print()
 
     analytics = compute_analytics(all_events)
-    save_report(analytics, OUTPUT_REPORT)
+    save_report(analytics, output_report)
     table_logger.log_summary(analytics)
 
     print(f"\nСобытий записано: {len(all_events)}")
@@ -284,8 +286,8 @@ def run_pipeline(video_path: str):
         print("  средняя задержка: N/A (нет валидных пар пустой→подход)")
     print(f"\nВыходные файлы:")
     print(f"  Видео:   {output_video}")
-    print(f"  События: {OUTPUT_EVENTS_CSV}")
-    print(f"  Отчёт:   {OUTPUT_REPORT}")
+    print(f"  События: {output_events_csv}")
+    print(f"  Отчёт:   {output_report}")
 
 
 def main():

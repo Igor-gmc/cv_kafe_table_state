@@ -88,7 +88,6 @@ credentials/
 # Датасеты и данные
 # ============================================================================
 dataset.csv
-*.csv
 !requirements.txt
 init_project.txt
 video/
@@ -136,14 +135,18 @@ vector_db/
 # Результаты и логи
 # ============================================================================
 results/
-outputs/
+outputs/*.mp4
+!outputs/*.csv
+!outputs/*.log
+!outputs/*.txt
+!outputs/*.png
 logs/
 results_*.csv
 comparison_*.csv
 *.log
 
 # Графики и визуализации
-*.png
+
 *.jpg
 *.jpeg
 *.gif

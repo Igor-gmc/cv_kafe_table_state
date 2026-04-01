@@ -9,12 +9,12 @@ YOLO_IMGSZ = 640
 
 # --- Пропуск кадров ---
 # Обрабатывать каждый N-й кадр с помощью YOLO; промежуточные кадры переиспользуют последнее обнаружение
-FRAME_SKIP = 5
+FRAME_SKIP = 3
 
 # --- Пороги автомата состояний (секунды) ---
 # Конвертируются в кадры во время выполнения: ceil(SEC * fps)
 REQUIRED_OCCUPIED_SEC = 5.0
-REQUIRED_EMPTY_SEC = 3.0
+REQUIRED_EMPTY_SEC = 5.0
 
 # --- ROI столика ---
 # Откалибровать по реальному кадру видео (Блок 11).
@@ -37,7 +37,6 @@ TABLE_ZONE = (1350, 124, 1795, 306)
 # на основе длительности видео: bitrate = target_size / duration.
 OUTPUT_TARGET_SIZE_MB = 200
 
-OUTPUT_VIDEO = "outputs/output.mp4"
 OUTPUT_EVENTS_CSV = "outputs/events.csv"
 OUTPUT_REPORT = "outputs/report.txt"
 OUTPUT_TABLE_LOG = "outputs/table_status.log"
@@ -60,7 +59,7 @@ SURFACE_PIXEL_THRESHOLD = 40
 
 # --- Детекция движения ---
 # Порог доли движущихся пикселей в TABLE_ZONE для срабатывания (0.0 - 1.0)
-MOTION_THRESHOLD = 0.02
+MOTION_THRESHOLD = 0.03
 
 # --- Именование скриншотов ---
 # Шаблон: outputs/screenshot_{video_stem}_{seq:03d}.png
