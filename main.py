@@ -23,7 +23,6 @@ from src.config.settings import (
     OUTPUT_REPORT,
     OUTPUT_TABLE_LOG,
     OUTPUT_TARGET_SIZE_MB,
-    OUTPUT_VIDEO,
     REQUIRED_EMPTY_SEC,
     REQUIRED_OCCUPIED_SEC,
     SCREENSHOT_DIR,
@@ -35,7 +34,12 @@ from src.detector import PersonDetector
 from src.motion_detector import MotionDetector
 from src.event_logger import EventLogger
 from src.presence_logic import compute_presence_signal
-from src.state_machine import TableStateMachine
+from src.state_machine import (
+    CANDIDATE_EMPTY,
+    OCCUPIED_CONFIRMED,
+    TableStateMachine,
+)
+from src.surface_comparator import SurfaceComparator
 from src.table_logger import TableStatusLogger
 from src.video_io import VideoReader, VideoWriter
 from src.visualizer import draw_frame
@@ -130,6 +134,7 @@ def interactive_roi_setup(first_frame, video_stem: str, frame_width: int, frame_
 def run_pipeline(video_path: str):
     Path("outputs").mkdir(exist_ok=True)
     video_stem = Path(video_path).stem
+    output_video = f"outputs/output_{video_stem}.mp4"
 
     with VideoReader(video_path) as reader:
         fps = reader.fps
@@ -163,13 +168,17 @@ def run_pipeline(video_path: str):
         initial_detections = detector.detect(first_frame)
         initial_presence = compute_presence_signal(initial_detections, table_zone, None)
         if initial_presence == "interacting_person":
-            from src.state_machine import OCCUPIED_CONFIRMED
             initial_state = OCCUPIED_CONFIRMED
         else:
             from src.state_machine import EMPTY_CONFIRMED
             initial_state = EMPTY_CONFIRMED
 
         state_machine = TableStateMachine(fps, initial_state=initial_state)
+
+        # Сравнение поверхности столика с эталоном чистого состояния
+        surface_comparator = SurfaceComparator(table_zone)
+        if initial_state == EMPTY_CONFIRMED:
+            surface_comparator.capture_reference(first_frame)
 
         initial_event = {
             "frame_idx": 0,
@@ -193,7 +202,7 @@ def run_pipeline(video_path: str):
         print(f"Целевой размер: {OUTPUT_TARGET_SIZE_MB} МБ → битрейт: {bitrate_kbps} kbps")
 
         with EventLogger(OUTPUT_EVENTS_CSV) as logger, \
-             VideoWriter(OUTPUT_VIDEO, fps, frame_width, frame_height, bitrate_kbps) as writer:
+             VideoWriter(output_video, fps, frame_width, frame_height, bitrate_kbps) as writer:
             logger.log(initial_event)
             start_time = time.time()
             last_detections = []
@@ -213,11 +222,24 @@ def run_pipeline(video_path: str):
                 if presence == "no_person" and motion_ratio >= MOTION_THRESHOLD:
                     presence = "interacting_person"
 
+                # Проверка поверхности: если людей нет, но столик грязный — считаем занятым.
+                # Работает только когда столик уже был OCCUPIED (кто-то сидел и ушёл),
+                # чтобы не ловить случайные изменения освещения/теней в пустом состоянии.
+                if (
+                    presence != "interacting_person"
+                    and state_machine.current_state in (OCCUPIED_CONFIRMED, CANDIDATE_EMPTY)
+                    and surface_comparator.is_surface_dirty(frame)
+                ):
+                    presence = "interacting_person"
+
                 events = state_machine.update(presence, frame_idx, timestamp_sec)
 
                 for e in events:
                     logger.log(e)
                     table_logger.log_state_change(e)
+                    # Обновить эталон чистого столика при переходе в EMPTY
+                    if e["event_type"] == "became_empty":
+                        surface_comparator.capture_reference(frame)
                     # Сохранить кадр при смене статуса
                     ts = e["timestamp_sec"]
                     m, s = int(ts // 60), int(ts % 60)
@@ -261,7 +283,7 @@ def run_pipeline(video_path: str):
     else:
         print("  средняя задержка: N/A (нет валидных пар пустой→подход)")
     print(f"\nВыходные файлы:")
-    print(f"  Видео:   {OUTPUT_VIDEO}")
+    print(f"  Видео:   {output_video}")
     print(f"  События: {OUTPUT_EVENTS_CSV}")
     print(f"  Отчёт:   {OUTPUT_REPORT}")
 

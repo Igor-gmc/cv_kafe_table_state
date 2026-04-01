@@ -77,7 +77,9 @@ def classify_person(
     - опорная точка (нижний центр bbox) внутри table_zone:
         - если центр bbox сместился > TRANSIT_DISPLACEMENT_PX → "transit"
         - иначе → "interacting"
-    - bbox перекрывает table_zone, но опорная точка снаружи → "transit"
+    - bbox перекрывает table_zone, но опорная точка снаружи:
+        - если человек НЕ движется (стоит у столика) → "interacting"
+        - если движется (проходит мимо) → "transit"
     - иначе → "irrelevant"
 
     Возвращает: "interacting" | "transit" | "irrelevant"
@@ -88,7 +90,9 @@ def classify_person(
             return "transit"
         return "interacting"
     if _bbox_overlaps(bbox, table_zone):
-        return "transit"
+        if prev_centers and _is_moving(bbox, prev_centers):
+            return "transit"
+        return "interacting"
     return "irrelevant"
 
 
