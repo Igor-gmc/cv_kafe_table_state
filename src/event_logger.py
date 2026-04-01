@@ -1,12 +1,12 @@
 # src/event_logger.py
-# Module 5 — Event Logger
-# Block 7: EventLogger — DataFrame-backed event store, CSV flushed on close.
+# Модуль 5 — Логгер событий
+# Блок 7: EventLogger — хранилище событий на базе DataFrame, сброс в CSV при закрытии.
 
 import pandas as pd
 
 
 class EventLogger:
-    """Accumulates events in a Pandas DataFrame and writes them to CSV on close."""
+    """Накапливает события в Pandas DataFrame и записывает их в CSV при закрытии."""
 
     _COLUMNS = ["frame_idx", "timestamp_sec", "event_type", "prev_state", "new_state"]
 

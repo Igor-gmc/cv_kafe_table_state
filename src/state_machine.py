@@ -1,30 +1,30 @@
 # src/state_machine.py
-# Module 4 — State Machine
-# Block 6: TableStateMachine — 4-state FSM.
+# Модуль 4 — Автомат состояний
+# Блок 6: TableStateMachine — 4-состояний КА.
 
 from math import ceil
 
 from src.config.settings import REQUIRED_OCCUPIED_SEC, REQUIRED_EMPTY_SEC
 
-# State constants
+# Константы состояний
 EMPTY_CONFIRMED = "EMPTY_CONFIRMED"
 CANDIDATE_OCCUPIED = "CANDIDATE_OCCUPIED"
 OCCUPIED_CONFIRMED = "OCCUPIED_CONFIRMED"
 CANDIDATE_EMPTY = "CANDIDATE_EMPTY"
 
-# Presence signal constants
+# Константы сигнала присутствия
 INTERACTING_PERSON = "interacting_person"
 
 
 class TableStateMachine:
-    """4-state FSM for table occupancy.
+    """4-состояний конечный автомат для определения занятости столика.
 
-    States: EMPTY_CONFIRMED, CANDIDATE_OCCUPIED, OCCUPIED_CONFIRMED, CANDIDATE_EMPTY
-    Events emitted: became_occupied, approach, became_empty
+    Состояния: EMPTY_CONFIRMED, CANDIDATE_OCCUPIED, OCCUPIED_CONFIRMED, CANDIDATE_EMPTY
+    Генерируемые события: became_occupied, approach, became_empty
     """
 
-    def __init__(self, fps: float):
-        self._state = EMPTY_CONFIRMED
+    def __init__(self, fps: float, initial_state: str = EMPTY_CONFIRMED):
+        self._state = initial_state
         self._counter = 0
         self._required_occupied_frames = ceil(REQUIRED_OCCUPIED_SEC * fps)
         self._required_empty_frames = ceil(REQUIRED_EMPTY_SEC * fps)
@@ -36,7 +36,7 @@ class TableStateMachine:
     def update(
         self, presence_signal: str, frame_idx: int, timestamp_sec: float
     ) -> list[dict]:
-        """Process one frame's presence signal. Returns list of emitted events (may be empty)."""
+        """Обработать сигнал присутствия одного кадра. Возвращает список сгенерированных событий (может быть пустым)."""
         events = []
         is_interacting = presence_signal == INTERACTING_PERSON
 

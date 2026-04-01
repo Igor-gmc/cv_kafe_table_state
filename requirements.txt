@@ -2,3 +2,4 @@ opencv-python
 pandas
 ultralytics
 numpy
+imageio-ffmpeg

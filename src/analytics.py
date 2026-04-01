@@ -1,14 +1,14 @@
 # src/analytics.py
-# Module 5 — Analytics
-# Block 8: compute_analytics and save_report.
+# Модуль 5 — Аналитика
+# Блок 8: compute_analytics и save_report.
 
 import pandas as pd
 
 
 def compute_analytics(events: pd.DataFrame) -> dict:
-    """Find (became_empty, approach) pairs; compute delays.
+    """Найти пары (became_empty, approach); вычислить задержки.
 
-    Returns dict with counts and mean_delay_sec (None if no valid pairs).
+    Возвращает словарь со счётчиками и mean_delay_sec (None, если нет валидных пар).
     """
     num_became_occupied = int((events["event_type"] == "became_occupied").sum())
     num_became_empty = int((events["event_type"] == "became_empty").sum())
@@ -37,19 +37,19 @@ def compute_analytics(events: pd.DataFrame) -> dict:
 
 
 def save_report(analytics: dict, path: str):
-    """Write report.txt with analytics summary."""
+    """Записать report.txt со сводкой аналитики."""
     delays_str = ", ".join(f"{d:.3f}" for d in analytics["delays"]) if analytics["delays"] else "none"
     mean_str = f"{analytics['mean_delay_sec']:.3f}" if analytics["mean_delay_sec"] is not None else "N/A"
 
     lines = [
-        "=== Cafe Table Occupancy Report ===",
+        "=== Отчёт о занятости столика в кафе ===",
         "",
-        f"Total became_occupied events : {analytics['num_became_occupied']}",
-        f"Total became_empty events    : {analytics['num_became_empty']}",
-        f"Total approach events        : {analytics['num_approach']}",
+        f"Всего событий became_occupied : {analytics['num_became_occupied']}",
+        f"Всего событий became_empty    : {analytics['num_became_empty']}",
+        f"Всего событий approach        : {analytics['num_approach']}",
         "---",
-        f"Approach delays (sec)        : [{delays_str}]",
-        f"Mean approach delay (sec)    : {mean_str}",
+        f"Задержки approach (сек)       : [{delays_str}]",
+        f"Средняя задержка approach (сек): {mean_str}",
         "",
     ]
 

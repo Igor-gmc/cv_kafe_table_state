@@ -1,12 +1,12 @@
 # src/table_logger.py
-# Logs table status changes to file and terminal.
+# Логирует изменения статуса столика в файл и терминал.
 
 import logging
 from pathlib import Path
 
 
 class TableStatusLogger:
-    """Logs table state transitions to a file and terminal simultaneously."""
+    """Логирует переходы состояний столика в файл и терминал одновременно."""
 
     def __init__(self, log_path: str, video_source: str):
         self._video_source = video_source
@@ -26,11 +26,11 @@ class TableStatusLogger:
         ch.setFormatter(fmt)
         self._logger.addHandler(ch)
 
-        self._logger.info(f"Video: {video_source}")
-        self._logger.info(f"Table status log started")
+        self._logger.info(f"Видео: {video_source}")
+        self._logger.info(f"Журнал статусов столика запущен")
 
     def log_state_change(self, event: dict):
-        """Log a state transition event."""
+        """Зафиксировать событие перехода состояния."""
         frame = event["frame_idx"]
         ts = event["timestamp_sec"]
         etype = event["event_type"]
@@ -46,14 +46,14 @@ class TableStatusLogger:
         )
 
     def log_summary(self, analytics: dict):
-        """Log final analytics summary."""
-        self._logger.info("--- Summary ---")
-        self._logger.info(f"Video: {self._video_source}")
+        """Записать итоговую сводку аналитики."""
+        self._logger.info("--- Итого ---")
+        self._logger.info(f"Видео: {self._video_source}")
         self._logger.info(f"became_occupied: {analytics['num_became_occupied']}")
         self._logger.info(f"became_empty: {analytics['num_became_empty']}")
         self._logger.info(f"approach: {analytics['num_approach']}")
         if analytics["mean_delay_sec"] is not None:
-            self._logger.info(f"mean_delay: {analytics['mean_delay_sec']:.3f} sec")
+            self._logger.info(f"mean_delay: {analytics['mean_delay_sec']:.3f} сек")
         else:
             self._logger.info("mean_delay: N/A")
-        self._logger.info("--- End ---")
+        self._logger.info("--- Конец ---")

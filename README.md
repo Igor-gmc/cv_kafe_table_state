@@ -1,48 +1,109 @@
 # kafe_place_table_detect
 
-Cafe table occupancy detector. Detects when a table becomes occupied or vacant using YOLOv8 on video footage.
+Детектор занятости столиков в кафе. Определяет моменты, когда столик становится занятым или свободным, с помощью YOLOv8 и детекции движения на видеозаписях.
 
-## Setup
+## Установка
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+## Структура проекта
+
+```
+main.py                  — точка входа
+src/
+  config/
+    settings.py          — все настраиваемые константы (модель, пороги, зона, пути)
+  detector.py            — детектор людей на базе YOLOv8s
+  motion_detector.py     — детекция движения (вычитание фона MOG2) как резервный сигнал
+  presence_logic.py      — классификация опорной точки (взаимодействие/транзит/нерелевантно)
+  state_machine.py       — 4-состояний автомат для определения занятости столика
+  event_logger.py        — хранилище событий на базе Pandas DataFrame + экспорт в CSV
+  analytics.py           — вычисление задержек и формирование отчёта
+  visualizer.py          — аннотация кадра (прямоугольник зоны, рамки bbox, метка состояния)
+  video_io.py            — VideoReader / VideoWriter
+  table_logger.py        — логгер статусов столика (файл + терминал)
+data/video/              — входные видеофайлы
+outputs/                 — все выходные файлы (видео, CSV, отчёт, лог, скриншоты)
+```
+
+## Использование
 
 ```bash
 python main.py --video "data/video/видео 1.mp4"
 ```
 
-The script will:
-1. Save the first frame as a screenshot and display the video resolution
-2. Ask you to enter VISUAL_ROI coordinates (x1 y1 x2 y2) — the yellow outer rectangle
-3. Ask you to enter INTERACTION_ZONE coordinates (x1 y1 x2 y2) — the green inner rectangle
-4. Save a screenshot with both zones drawn for visual confirmation
-5. Ask you to confirm (y/n) before starting the analysis
+Скрипт выполнит следующие шаги:
+1. Сохранит первый кадр как скриншот и выведет разрешение видео
+2. Попросит ввести координаты TABLE_ZONE (x1 y1 x2 y2) — зона столика и посадочных мест
+3. Сохранит скриншот с зоной для визуальной проверки
+4. Попросит подтвердить (y — начать анализ / n — ввести координаты заново)
+5. Запустит детекцию с индикатором прогресса
 
-Outputs:
-- `outputs/output.mp4` — annotated video
-- `outputs/events.csv` — event log with timestamps
-- `outputs/report.txt` — analytics summary
-- `outputs/screenshot_{video}_{NNN}.png` — saved screenshots (first frame, ROI preview)
+Формат координат: `x1 y1 x2 y2`, где (x1,y1) — левый верхний угол, (x2,y2) — правый нижний угол. Начало координат (0,0) — левый верхний угол кадра.
 
-## Selected table and ROI
+## Выходные файлы
 
-On each run the user enters table coordinates manually after viewing the first frame screenshot. The video resolution is displayed to help determine pixel coordinates.
+- `outputs/output.mp4` — аннотированное видео с наложением зоны и состояния
+- `outputs/events.csv` — журнал событий с метками времени (frame_idx, timestamp_sec, event_type, states)
+- `outputs/report.txt` — сводка аналитики (счётчики, задержки, средняя задержка)
+- `outputs/table_status.log` — журнал изменений статуса столика с источником видео и метками времени
+- `outputs/screenshot_{video}_{NNN}.png` — скриншоты (первый кадр, предпросмотр зоны)
+- `outputs/screen_table_state/` — скриншоты кадров при каждой смене статуса столика. Формат имени: `{видео}_f{кадр}_{мм}m{сс}s_{статус}.png`
 
-## Detection logic
+## Логика детекции
 
-- YOLOv8n detects persons on each frame
-- Each person is classified by foot-point (bottom-center of bbox) relative to `INTERACTION_ZONE`
-- A 4-state machine (`EMPTY_CONFIRMED` → `CANDIDATE_OCCUPIED` → `OCCUPIED_CONFIRMED` → `CANDIDATE_EMPTY` → ...) produces confirmed state transitions
-- Events: `became_occupied`, `became_empty`, `approach`
-- `approach` fires only on confirmed `EMPTY_CONFIRMED → OCCUPIED_CONFIRMED` transition
+### Начальный статус
+При старте определяется **начальный статус столика** по первому кадру: если в зоне столика обнаружен человек — `OCCUPIED_CONFIRMED`, иначе — `EMPTY_CONFIRMED`. Начальный статус логируется как событие `initial_state` и сохраняется скриншот.
 
-## Results
+### TABLE_ZONE — единая зона
+Вместо двух отдельных зон (визуализация + детекция) используется одна — `TABLE_ZONE`. Она охватывает поверхность столика и посадочные места вокруг него. Используется для:
+- визуализации на видео (жёлтый прямоугольник)
+- классификации присутствия (foot-point внутри зоны = взаимодействие)
+- детекции движения (MOG2 анализирует пиксели внутри зоны)
 
-## Limitations
+### Двойная детекция: YOLO + движение
+Система использует два метода детекции одновременно:
 
-- Single table, hardcoded ROI
-- No distinction between guest and staff
-- Possible false positives in complex poses or high-traffic aisle
+1. **YOLOv8s** — основной детектор людей (класс COCO 0), `imgsz=640`. Запускается каждые N кадров (`FRAME_SKIP=10`), промежуточные кадры переиспользуют последнее обнаружение. Каждый человек классифицируется по опорной точке (нижний центр bbox) относительно `TABLE_ZONE`. Дополнительно применяется **трекинг скорости**: если центр bbox сместился больше `TRANSIT_DISPLACEMENT_PX` (по умолчанию 60 px) между двумя последовательными YOLO-детекциями, человек считается проходящим мимо ("transit") даже если его опорная точка находится внутри зоны. Это предотвращает ложное срабатывание, когда кто-то проходит через кадр рядом со столиком.
+
+2. **Детекция движения (MOG2)** — резервный сигнал. Используется `cv2.createBackgroundSubtractorMOG2`. Запускается на **каждом** кадре. Если YOLO не видит человека, но доля движущихся пикселей в `TABLE_ZONE` превышает `MOTION_THRESHOLD` (по умолчанию 2%) — столик считается занятым. Покрывает случаи, когда YOLO не распознаёт человека: наклон над столом, нестандартная поза, съёмка сверху.
+
+### Автомат состояний
+4-состояний автомат (`EMPTY_CONFIRMED` → `CANDIDATE_OCCUPIED` → `OCCUPIED_CONFIRMED` → `CANDIDATE_EMPTY` → ...) формирует подтверждённые переходы состояний. При каждой смене статуса сохраняется скриншот кадра в `outputs/screen_table_state/`.
+
+### События
+- `initial_state` — начальный статус при старте
+- `became_occupied` — столик стал занят (подтверждено)
+- `became_empty` — столик освободился (подтверждено)
+- `approach` — подход к столику после периода пустоты (срабатывает вместе с `became_occupied` при переходе `EMPTY_CONFIRMED → OCCUPIED_CONFIRMED`)
+
+## Журнал статусов столика
+
+Каждое изменение состояния записывается в `outputs/table_status.log` и выводится в терминал:
+
+```
+2026-03-31 21:15:10 | [00:25.50] frame=510 became_occupied: EMPTY_CONFIRMED -> OCCUPIED_CONFIRMED | src=data/video/видео 1.mp4
+2026-03-31 21:15:45 | [02:10.00] frame=2600 became_empty: OCCUPIED_CONFIRMED -> EMPTY_CONFIRMED | src=data/video/видео 1.mp4
+```
+
+## Конфигурация
+
+Все настройки находятся в `src/config/settings.py`:
+- `YOLO_MODEL` — файл модели (по умолчанию: `yolov8s.pt`)
+- `CONF_THRESHOLD` — порог уверенности детекции (по умолчанию: `0.3`)
+- `YOLO_IMGSZ` — размер входного изображения для YOLO (по умолчанию: `640`)
+- `FRAME_SKIP` — запускать YOLO каждые N кадров (по умолчанию: `10`)
+- `TRANSIT_DISPLACEMENT_PX` — порог смещения центра bbox (в пикселях) между двумя YOLO-детекциями для классификации человека как проходящего мимо (по умолчанию: `60`)
+- `MOTION_THRESHOLD` — порог доли движущихся пикселей для срабатывания детекции движения (по умолчанию: `0.02`)
+- `REQUIRED_OCCUPIED_SEC` / `REQUIRED_EMPTY_SEC` — пороги подтверждения состояния
+- `TABLE_ZONE` — координаты зоны столика (x1, y1, x2, y2)
+
+## Ограничения
+
+- Один столик за один запуск
+- Нет разграничения между гостем и персоналом
+- Трекинг скорости использует простое nearest-neighbor сопоставление bbox между кадрами (без полноценного multi-object tracking)
+- Возможны ложные срабатывания детекции движения при резком изменении освещения
+- Обработка только на CPU (без CUDA)

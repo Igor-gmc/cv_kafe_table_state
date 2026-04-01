@@ -1,44 +1,62 @@
 # config/settings.py
-# Single source of truth for all tunable constants.
-# Block 3 — Config & ROI
+# Единый источник истины для всех настраиваемых констант.
+# Блок 3 — Config & ROI
 
-# --- Model ---
-YOLO_MODEL = "yolov8n.pt"
-CONF_THRESHOLD = 0.4
-YOLO_IMGSZ = 640  # resize frame to this for YOLO inference (speeds up CPU)
+# --- Модель ---
+YOLO_MODEL = "yolov8s.pt"
+CONF_THRESHOLD = 0.25
+YOLO_IMGSZ = 2560  # оригинальное разрешение видео (2560x1440)
 
-# --- Frame skip ---
-# Process every N-th frame with YOLO; intermediate frames reuse last detection
-FRAME_SKIP = 10
+# --- Пропуск кадров ---
+# Обрабатывать каждый N-й кадр с помощью YOLO; промежуточные кадры переиспользуют последнее обнаружение
+FRAME_SKIP = 5
 
-# --- State machine thresholds (seconds) ---
-# Converted to frames at runtime: ceil(SEC * fps)
-REQUIRED_OCCUPIED_SEC = 1.0
-REQUIRED_EMPTY_SEC = 1.5
+# --- Пороги автомата состояний (секунды) ---
+# Конвертируются в кадры во время выполнения: ceil(SEC * fps)
+REQUIRED_OCCUPIED_SEC = 5.0
+REQUIRED_EMPTY_SEC = 3.0
 
-# --- Table ROI ---
-# Calibrate these against the actual video frame (Block 11).
-# Use cv2.imwrite on frame 0, open in an image viewer, read pixel coords.
+# --- ROI столика ---
+# Откалибровать по реальному кадру видео (Блок 11).
+# Использовать cv2.imwrite на кадре 0, открыть в просмотрщике изображений, считать пиксельные координаты.
 #
-# visual_roi: rectangle drawn on video; also used for transit overlap test
-# Format: (x1, y1, x2, y2)
-# Video: "видео 1.mp4", 2560x1440, 20 FPS
-# Selected table: center white table between dark booth dividers
-VISUAL_ROI = (1350, 124, 1795, 306)
+# table_zone: единый прямоугольник столика и посадочных мест.
+# Используется для:
+#   - визуализации (жёлтый прямоугольник на кадре)
+#   - определения взаимодействия: опорная точка (нижний центр bbox) внутри зоны → "interacting"
+#   - определения транзита: bbox перекрывает зону, но опорная точка снаружи → "transit"
+#   - детекции движения (MOG2)
+# Формат: (x1, y1, x2, y2)
+# Видео: "видео 1.mp4", 2560x1440, 20 FPS
+# Выбранный столик: центральный белый стол между тёмными перегородками
+TABLE_ZONE = (1350, 124, 1795, 306)
 
-# interaction_zone: inner zone; foot-point (bottom-center of bbox) must be
-# inside this zone for a person to be classified as "interacting"
-INTERACTION_ZONE = (1280, 60, 1850, 350)
+# --- Пути к выходным файлам ---
+# --- Ограничение размера выходного видео ---
+# Целевой размер файла в мегабайтах. Битрейт рассчитывается автоматически
+# на основе длительности видео: bitrate = target_size / duration.
+OUTPUT_TARGET_SIZE_MB = 200
 
-# --- Output paths ---
 OUTPUT_VIDEO = "outputs/output.mp4"
 OUTPUT_EVENTS_CSV = "outputs/events.csv"
 OUTPUT_REPORT = "outputs/report.txt"
 OUTPUT_TABLE_LOG = "outputs/table_status.log"
 
-# --- Screenshot naming ---
-# Pattern: outputs/screenshot_{video_stem}_{seq:03d}.png
-# {video_stem} = video filename without extension
-# {seq} = auto-incremented sequence number (001, 002, ...)
+# --- Трекинг скорости (фильтр транзита) ---
+# Если центр bbox сместился больше этого порога (в пикселях) между двумя
+# последовательными YOLO-детекциями, человек считается проходящим ("transit"),
+# даже если его опорная точка внутри TABLE_ZONE.
+# При FRAME_SKIP=10 и FPS=20 интервал между детекциями = 0.5 сек.
+# 60 px / 0.5 сек ≈ нормальная скорость ходьбы в кадре 2560px.
+TRANSIT_DISPLACEMENT_PX = 60
+
+# --- Детекция движения ---
+# Порог доли движущихся пикселей в TABLE_ZONE для срабатывания (0.0 - 1.0)
+MOTION_THRESHOLD = 0.02
+
+# --- Именование скриншотов ---
+# Шаблон: outputs/screenshot_{video_stem}_{seq:03d}.png
+# {video_stem} = имя видеофайла без расширения
+# {seq} = автоинкрементный порядковый номер (001, 002, ...)
 SCREENSHOT_DIR = "outputs"
 SCREENSHOT_PATTERN = "screenshot_{video_stem}_{seq:03d}.png"

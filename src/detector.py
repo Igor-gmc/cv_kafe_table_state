@@ -1,28 +1,28 @@
 # src/detector.py
-# Module 2 — Detector
-# Block 4: PersonDetector — YOLOv8n wrapper.
+# Модуль 2 — Детектор
+# Блок 4: PersonDetector — обёртка над YOLOv8n.
 
 import numpy as np
 from ultralytics import YOLO
 
 from src.config.settings import YOLO_MODEL, CONF_THRESHOLD, YOLO_IMGSZ
 
-# COCO class 0 = person
+# Класс COCO 0 = человек
 _PERSON_CLASS_ID = 0
 
 
 class PersonDetector:
-    """Detects persons on a frame using YOLOv8n."""
+    """Обнаруживает людей на кадре с помощью YOLOv8n."""
 
     def __init__(self):
         self._model = YOLO(YOLO_MODEL)
 
     def detect(self, frame: np.ndarray) -> list[tuple[tuple[int, int, int, int], float]]:
-        """Run inference, return only person detections.
+        """Запустить инференс, вернуть только обнаружения людей.
 
-        Returns:
-            List of ((x1, y1, x2, y2), confidence) tuples.
-            Empty list if no persons found.
+        Возвращает:
+            Список кортежей ((x1, y1, x2, y2), confidence).
+            Пустой список, если люди не найдены.
         """
         results = self._model(frame, conf=CONF_THRESHOLD, imgsz=YOLO_IMGSZ, verbose=False)
         detections = []
